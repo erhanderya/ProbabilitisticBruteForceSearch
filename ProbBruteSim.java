@@ -1,4 +1,3 @@
-
 import java.awt.*;
 import java.util.*;
 import java.util.List;
@@ -23,12 +22,15 @@ import javax.swing.*;
 class Test {
 
     public static void main(String[] args) {
-        int numberOfRuns = 50;
-        int bitStringLength = 20;
+        int numberOfRuns = 1000;
+        int bitStringLength = 15;
         double[] prob = generateRandomProbabilites(bitStringLength);
         ProbBruteSim sim = new ProbBruteSim(prob);
 
+        System.out.println("Probabilities: " + toString(prob));
         int[] acctarget = sim.generateAccurateTarget();
+        System.out.println("Target: " + toString(acctarget) + "\n");
+
         int[] unsorted = new int[sim.length];
 
         for (int i = 0; i < unsorted.length; i++) {
@@ -39,10 +41,11 @@ class Test {
 
         List<Integer> list = new ArrayList<>();
         List<Integer> list1 = new ArrayList<>();
+        Map<int[],double[]> worstCases = new HashMap<>();
         double[] times = new double[numberOfRuns];
         double[] timesunsorted = new double[numberOfRuns];
 
-        // Multiple Tests
+
 
         for (int i = 0; i < numberOfRuns; i++) {
             // sorted
@@ -51,7 +54,7 @@ class Test {
             sorted = sim.sortedIndices();
             acctarget = sim.generateAccurateTarget();
             long start2 = System.currentTimeMillis();
-            int[] sortedguess = sim.generateGuess(sorted, acctarget);
+            sim.generateGuess(sorted, acctarget);
             long end2 = System.currentTimeMillis();
             double timeTaken2 = (end2 - start2) / 1000.0;
             list.add(sim.attemps);
@@ -59,15 +62,18 @@ class Test {
             // unsorted
             sim.attemps = 0;
             long start3 = System.currentTimeMillis();
-            int[] unsortedguess = sim.generateNormalGuess(unsorted, acctarget);
+            sim.generateGuess(unsorted, acctarget);
             long end3 = System.currentTimeMillis();
             double timeTaken3 = (end3 - start3) / 1000.0;
             timesunsorted[i] = timeTaken3;
             list1.add(sim.attemps);
+            if(timeTaken2 > timeTaken3) {
+                worstCases.put(acctarget,prob);
+            } else {
+                System.out.printf("Best Cases: %.10f\n",calculateTargetProbability(acctarget,prob));
+            }
 
         }
-
-        // Find Min,Max,Average Attemps
 
         Iterator<Integer> iter
                 = list.iterator();
@@ -106,12 +112,19 @@ class Test {
 
         int avg1 = (int)sum1 / list1.size();
 
-        // Chart Part
+        // worstcase handling
+
+        for (Map.Entry<int[],double[]> entry : worstCases.entrySet()) {
+            System.out.printf("worst cases possibility: %.10f\n",calculateTargetProbability(entry.getKey(),entry.getValue()));
+        }
+
+
+
 
         DefaultCategoryDataset barDataset = new DefaultCategoryDataset();
         for (int i = 0; i < times.length; i++) {
-            barDataset.addValue(times[i] * 1000, "Probabilistic", "Run " + (i + 1));
-            barDataset.addValue(timesunsorted[i] * 1000, "Normal", "Run " + (i + 1));
+            barDataset.addValue(times[i] * 1000, "Sorted", "Run " + (i + 1));
+            barDataset.addValue(timesunsorted[i] * 1000, "Unsorted", "Run " + (i + 1));
         }
 
         JFreeChart barChart = ChartFactory.createBarChart(
@@ -141,8 +154,8 @@ class Test {
 
         // Create and show line chart
         XYSeriesCollection lineDataset = new XYSeriesCollection();
-        XYSeries sortedSeries = new XYSeries("Probabilistic");
-        XYSeries unsortedSeries = new XYSeries("Normal");
+        XYSeries sortedSeries = new XYSeries("Sorted");
+        XYSeries unsortedSeries = new XYSeries("Unsorted");
 
         for (int i = 0; i < times.length; i++) {
             sortedSeries.add(i + 1, times[i] * 1000);
@@ -185,53 +198,24 @@ class Test {
 
         // Create main frame
         JFrame frame = new JFrame("Runtime Comparisons");
-        frame.setLayout(new BorderLayout());  // Changed to BorderLayout for better control
+        frame.setLayout(new GridLayout(2, 1));  // 2 rows, 1 column
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Create main panel for charts
-        JPanel chartsPanel = new JPanel(new GridLayout(2, 1, 0, 5));  // 2 rows, 1 column, 5px vertical gap
-
-        // Create statistics panel with minimal height
-        JPanel statsPanel = new JPanel(new GridLayout(1, 2, 5, 0));  // Changed to horizontal layout
-        statsPanel.setBorder(BorderFactory.createTitledBorder("Statistics"));
-        statsPanel.setPreferredSize(new Dimension(800, 60));  // Reduced height further
-
-        // Create panels for sorted and unsorted statistics
-        JPanel sortedStatsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));  // Minimal vertical gap
-        sortedStatsPanel.setBorder(BorderFactory.createTitledBorder("Probabilistic"));
-        sortedStatsPanel.add(new JLabel(String.format("Average: %d attempts | ", avg)));
-        sortedStatsPanel.add(new JLabel(String.format("Max: %d attempts | ", max)));
-        sortedStatsPanel.add(new JLabel(String.format("Min: %d attempts", min)));
-
-        JPanel unsortedStatsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));  // Minimal vertical gap
-        unsortedStatsPanel.setBorder(BorderFactory.createTitledBorder("Normal"));
-        unsortedStatsPanel.add(new JLabel(String.format("Average: %d attempts | ", avg1)));
-        unsortedStatsPanel.add(new JLabel(String.format("Max: %d attempts | ", max1)));
-        unsortedStatsPanel.add(new JLabel(String.format("Min: %d attempts", min1)));
-
-        // Add statistics panels to main stats panel
-        statsPanel.add(sortedStatsPanel);
-        statsPanel.add(unsortedStatsPanel);
-
-        // Configure charts with larger size
+        // Add both charts to the frame
         ChartPanel barChartPanel = new ChartPanel(barChart);
         ChartPanel lineChartPanel = new ChartPanel(lineChart);
 
-        barChartPanel.setPreferredSize(new Dimension(800, 250));  // Increased height
-        lineChartPanel.setPreferredSize(new Dimension(800, 250));  // Increased height
+        barChartPanel.setPreferredSize(new Dimension(800, 300));
+        lineChartPanel.setPreferredSize(new Dimension(800, 300));
 
-        // Add components to panels
-        chartsPanel.add(barChartPanel);
-        chartsPanel.add(lineChartPanel);
-
-        // Add panels to frame
-        frame.add(chartsPanel, BorderLayout.CENTER);
-        frame.add(statsPanel, BorderLayout.SOUTH);
+        frame.add(barChartPanel);
+        frame.add(lineChartPanel);
 
         frame.pack();
         frame.setVisible(true);
 
-        // Print Max,Min and Averages
+
+
 
         System.out.printf("in %d attemps avarage attemp is: %d \n",numberOfRuns,avg);
         System.out.printf("in %d attemps max attemp is: %d \n",numberOfRuns,max);
@@ -240,8 +224,6 @@ class Test {
         System.out.printf("in %d attemps avarage attemp is: %d \n",numberOfRuns,avg1);
         System.out.printf("in %d attemps max attemp is: %d \n",numberOfRuns,max1);
         System.out.printf("in %d attemps min attemp is: %d \n",numberOfRuns,min1);
-
-        // Compare Probabilistic BF and Normal BF
 
         sim.attemps = 0;
         System.out.println("-------- Probabilistic Brute Force Search --------");
@@ -253,51 +235,25 @@ class Test {
         sim.attemps = 0;
         System.out.println("-------- Normal Brute Force Search --------");
         long start1 = System.currentTimeMillis();
-        System.out.println("Guess:  " + toString(sim.generateNormalGuess(unsorted, acctarget)) + "\nAttemps: " + sim.attemps);
+        System.out.println("Guess:  " + toString(sim.generateGuess(unsorted, acctarget)) + "\nAttemps: " + sim.attemps);
         long end1 = System.currentTimeMillis();
         double timeTaken1 = (end1 - start1) / 1000.0;
         System.out.printf("Search took: %6f seconds", timeTaken1);
 
     }
 
-    public static void lowPossibleIndexes(Map<int[],double[]> cases){
-        for (Map.Entry<int[], double[]> entry : cases.entrySet()) {
-            Map<List<Integer>, Integer> map = calculateTargetProbability(entry.getKey(), entry.getValue());
-            for (Map.Entry<List<Integer>, Integer> ent : map.entrySet()) {
-                Iterator<Integer> it
-                        = ent.getKey().iterator();
-                while (it.hasNext()) {
-                    int a = it.next();
-                    System.out.print("(" + a + ", ");
-                    System.out.println(entry.getValue()[a] + "), ");
-                }
-                System.out.println("\nCount: " + ent.getValue());
-            }
-
-        }
-    }
-
-    public static Map<List<Integer>,Integer> calculateTargetProbability(int[] target,double[] probab) {
-        int counter = 0;
-        Map<List<Integer>,Integer> map = new HashMap<>();
-        List<Integer> list = new ArrayList<>();
-
+    public static double calculateTargetProbability(int[] target,double[] probabilities) {
+        double probability = 1.0;
 
         for (int i = 0; i < target.length; i++) {
-            if (probab[i] > 0.5) {
-                if(target[i] != 1) {
-                    list.add(i);
-                    counter++;
-                }
+            if (target[i] == 1) {
+                probability *= probabilities[i];
             } else {
-                if(target[i] != 0) {
-                    list.add(i);
-                    counter++;
-                }
+                probability *= (1 - probabilities[i]);
             }
         }
-        map.put(list,counter);
-        return map;
+
+        return probability;
     }
 
 
@@ -390,33 +346,7 @@ public class ProbBruteSim {
                 return currentGuess;
             }
         }
-        return null;
-    }
-
-    public int[] generateNormalGuess(int[] sortedIndices, int[] target) {
-        int n = sortedIndices.length;
-        int[] guess = generateFirstGuess();
-
-        if (test(guess, target)) {
-            return guess;
-        }
-
-        for (long idx = 1; idx < (1L << n); idx++) {
-            int[] currentGuess = generateFirstGuess();
-
-            for (int i = 0; i < n; i++) {
-                if ((idx & (1L << i)) != 0) {
-                    int index = sortedIndices[i];
-                    currentGuess[index] = 1 - currentGuess[index];
-                }
-            }
-            attemps++;
-
-            if (test(currentGuess, target)) {
-                return currentGuess;
-            }
-        }
-        return null;
+        return guess;
     }
 
     public int[] sortedIndices() {
@@ -452,12 +382,6 @@ public class ProbBruteSim {
         }
         return guess;
     }
-    public int[] generateFirstGuess() {
-        int[] guess = new int[length];
-        return guess;
-    }
-
-
 
     public boolean test(int[] guess, int[] target) {
         return Arrays.equals(guess, target);
